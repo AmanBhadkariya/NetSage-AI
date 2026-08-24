@@ -1,13 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Activity,
   AlertTriangle,
   CheckCircle2,
   ClipboardCheck,
+  Cpu,
+  Eye,
+  EyeOff,
   FileSearch,
   Filter,
+  KeyRound,
+  Network,
   RefreshCw,
   Search,
+  Server,
   ShieldCheck,
+  Sparkles,
 } from 'lucide-react';
 import {
   Bar,
@@ -24,7 +32,7 @@ import {
 } from 'recharts';
 import { diagnoseCase, getCases, getDashboard, getReviews, getSettings, saveReview } from './api.js';
 
-const COLORS = ['#006d77', '#1f7a4d', '#9a6700', '#b42318', '#4a5568', '#7c3aed'];
+const COLORS = ['#0f766e', '#2563eb', '#d97706', '#dc2626', '#475569', '#7c3aed'];
 
 function App() {
   const [cases, setCases] = useState([]);
@@ -34,6 +42,7 @@ function App() {
   const [selectedId, setSelectedId] = useState('');
   const [diagnosis, setDiagnosis] = useState(null);
   const [diagnosisMode, setDiagnosisMode] = useState('rules');
+  const [deepseekApiKey, setDeepseekApiKey] = useState('');
   const [filters, setFilters] = useState({
     search: '',
     concept: 'All',
@@ -124,10 +133,14 @@ function App() {
 
   async function handleDiagnose(caseId = selectedId) {
     if (!caseId) return;
+    if (diagnosisMode === 'deepseek' && !deepseekApiKey.trim()) {
+      setError('Enter a DeepSeek API key to run DeepSeek diagnosis mode.');
+      return;
+    }
     setDiagnosing(true);
     setError('');
     try {
-      const result = await diagnoseCase(caseId, diagnosisMode);
+      const result = await diagnoseCase(caseId, diagnosisMode, deepseekApiKey);
       setDiagnosis(result);
       setSelectedId(caseId);
       const existingReview = reviewByCase[caseId];
@@ -166,15 +179,20 @@ function App() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 text-ink">
-      <header className="border-b border-line bg-white">
+    <main className="min-h-screen bg-console text-ink">
+      <header className="border-b border-line/80 bg-white/90 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 py-6 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-signal">NetSage AI</p>
-            <h1 className="mt-1 text-3xl font-semibold">Network troubleshooting review desk</h1>
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-ink text-white shadow-soft">
+              <Network size={25} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-signal">NetSage AI</p>
+              <h1 className="mt-1 text-3xl font-semibold">Network troubleshooting review desk</h1>
+            </div>
           </div>
           <button
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-soft transition hover:bg-slate-700"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-slate-700"
             type="button"
             onClick={loadInitialData}
             title="Refresh dashboard data"
@@ -187,7 +205,7 @@ function App() {
 
       <div className="mx-auto grid max-w-7xl gap-6 px-5 py-6">
         {error && (
-          <div className="flex items-start gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-alert">
+          <div className="flex items-start gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-alert shadow-soft">
             <AlertTriangle className="mt-0.5 shrink-0" size={18} />
             <span>{error}</span>
           </div>
@@ -221,6 +239,8 @@ function App() {
                 diagnosis={diagnosis}
                 diagnosisMode={diagnosisMode}
                 setDiagnosisMode={setDiagnosisMode}
+                deepseekApiKey={deepseekApiKey}
+                setDeepseekApiKey={setDeepseekApiKey}
                 diagnosisModes={settings.diagnosis_modes}
                 reviewForm={reviewForm}
                 setReviewForm={setReviewForm}
@@ -239,7 +259,7 @@ function App() {
 
 function Dashboard({ stats }) {
   const metrics = [
-    { label: 'Cases', value: stats.total_cases, icon: FileSearch },
+    { label: 'Cases', value: stats.total_cases, icon: Server },
     { label: 'Reviewed', value: stats.reviewed_cases, icon: ClipboardCheck },
     { label: 'Pending', value: stats.pending_review, icon: AlertTriangle },
     { label: 'Agreement', value: `${stats.agreement_rate}%`, icon: ShieldCheck },
@@ -251,10 +271,12 @@ function Dashboard({ stats }) {
         {metrics.map((metric) => {
           const Icon = metric.icon;
           return (
-            <div key={metric.label} className="rounded-md border border-line bg-white p-4 shadow-soft">
+            <div key={metric.label} className="rounded-md border border-line bg-white p-4 shadow-soft transition hover:-translate-y-0.5 hover:shadow-panel">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-medium text-slate-600">{metric.label}</span>
-                <Icon size={20} className="text-signal" />
+                <span className="flex h-9 w-9 items-center justify-center rounded-md bg-signal-soft text-signal">
+                  <Icon size={19} />
+                </span>
               </div>
               <div className="mt-3 text-3xl font-semibold">{metric.value}</div>
             </div>
@@ -270,7 +292,7 @@ function Dashboard({ stats }) {
               <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={-30} textAnchor="end" height={80} />
               <YAxis allowDecimals={false} />
               <Tooltip />
-              <Bar dataKey="value" fill="#006d77" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="value" fill="#0f766e" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartPanel>
@@ -296,7 +318,7 @@ function Dashboard({ stats }) {
               <XAxis dataKey="name" />
               <YAxis allowDecimals={false} />
               <Tooltip />
-              <Bar dataKey="value" fill="#1f7a4d" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="value" fill="#2563eb" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartPanel>
@@ -308,7 +330,10 @@ function Dashboard({ stats }) {
 function ChartPanel({ title, children }) {
   return (
     <div className="rounded-md border border-line bg-white p-4 shadow-soft">
-      <h2 className="mb-3 text-base font-semibold">{title}</h2>
+      <h2 className="mb-3 flex items-center gap-2 text-base font-semibold">
+        <Activity size={17} className="text-signal" />
+        {title}
+      </h2>
       {children}
     </div>
   );
@@ -344,7 +369,7 @@ function CaseList({
             <Search className="pointer-events-none absolute left-3 top-2.5 text-slate-400" size={17} />
             <input
               id="case-search"
-              className="h-10 w-full rounded-md border border-line pl-9 pr-3 text-sm outline-none focus:border-signal"
+              className="h-10 w-full rounded-md border border-line bg-panel pl-9 pr-3 text-sm outline-none transition focus:border-signal focus:bg-white focus:ring-2 focus:ring-signal-soft"
               value={filters.search}
               onChange={(event) => updateFilter('search', event.target.value)}
               placeholder="Search cases"
@@ -384,8 +409,8 @@ function CaseList({
           return (
             <div
               key={item.case_id}
-              className={`mb-3 w-full rounded-md border p-3 text-left transition ${
-                selected ? 'border-signal bg-cyan-50' : 'border-line bg-white hover:border-signal'
+              className={`mb-3 w-full rounded-md border p-3 text-left transition hover:-translate-y-0.5 ${
+                selected ? 'border-signal bg-signal-soft shadow-soft' : 'border-line bg-white hover:border-signal'
               }`}
             >
               <button className="w-full text-left" type="button" onClick={() => onSelect(item.case_id)}>
@@ -404,8 +429,9 @@ function CaseList({
               {selected && (
                 <button
                   type="button"
-                  className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-md bg-signal px-3 text-sm font-semibold text-white"
+                  className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-md bg-signal px-3 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
                   onClick={() => onDiagnose(item.case_id)}
+                  disabled={diagnosing}
                 >
                   <FileSearch size={16} />
                   {diagnosing ? 'Diagnosing...' : 'Diagnose'}
@@ -424,6 +450,8 @@ function DiagnosisDesk({
   diagnosis,
   diagnosisMode,
   setDiagnosisMode,
+  deepseekApiKey,
+  setDeepseekApiKey,
   diagnosisModes,
   reviewForm,
   setReviewForm,
@@ -432,13 +460,31 @@ function DiagnosisDesk({
   diagnosing,
   saving,
 }) {
+  const [showDeepseekKey, setShowDeepseekKey] = useState(false);
+  const needsDeepseekKey = diagnosisMode === 'deepseek' && !deepseekApiKey.trim();
+
   if (!selectedCase) {
     return <section className="rounded-md border border-line bg-white p-6 shadow-soft">No case selected.</section>;
   }
 
   return (
     <section className="grid gap-4">
-      <div className="rounded-md border border-line bg-white p-5 shadow-soft">
+      <div className="overflow-hidden rounded-md border border-line bg-white shadow-soft">
+        <div className="border-b border-line bg-ink px-5 py-4 text-white">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white/10">
+                <Cpu size={20} />
+              </span>
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-cyan-100">Diagnosis Console</div>
+                <div className="text-sm text-slate-200">{selectedCase.concept_tag} / {selectedCase.severity}</div>
+              </div>
+            </div>
+            <StatusPill status={selectedCase.osi_layer} />
+          </div>
+        </div>
+        <div className="p-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <div className="text-sm font-semibold text-signal">{selectedCase.case_id}</div>
@@ -448,8 +494,8 @@ function DiagnosisDesk({
             type="button"
             className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-signal px-4 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
             onClick={onDiagnose}
-            disabled={diagnosing}
-            title="Run deterministic diagnosis"
+            disabled={diagnosing || needsDeepseekKey}
+            title="Run diagnosis"
           >
             <FileSearch size={18} />
             {diagnosing ? 'Diagnosing...' : 'Run Diagnosis'}
@@ -466,7 +512,7 @@ function DiagnosisDesk({
               <label
                 key={mode.id}
                 className={`rounded-md border p-3 text-sm transition ${
-                  diagnosisMode === mode.id ? 'border-signal bg-cyan-50' : 'border-line bg-white'
+                  diagnosisMode === mode.id ? 'border-signal bg-signal-soft shadow-soft' : 'border-line bg-white hover:border-signal'
                 } ${mode.available ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
               >
                 <div className="flex items-center gap-2">
@@ -479,12 +525,44 @@ function DiagnosisDesk({
                     onChange={() => setDiagnosisMode(mode.id)}
                   />
                   <span className="font-semibold">{mode.label}</span>
-                  {!mode.available && <span className="text-xs text-slate-500">Needs key</span>}
+                  {mode.requires_key && <span className="rounded-full bg-white px-2 py-0.5 text-xs text-slate-500">API key</span>}
                 </div>
                 <div className="mt-1 text-xs leading-5 text-slate-600">{mode.description}</div>
               </label>
             ))}
           </div>
+          {diagnosisMode === 'deepseek' && (
+            <div className="mt-4 rounded-md border border-line bg-white p-3">
+              <label className="mb-2 flex items-center gap-2 text-sm font-semibold" htmlFor="deepseek-api-key">
+                <KeyRound size={17} className="text-signal" />
+                DeepSeek API Key
+              </label>
+              <div className="flex gap-2">
+                <input
+                  id="deepseek-api-key"
+                  className="h-10 min-w-0 flex-1 rounded-md border border-line bg-panel px-3 text-sm outline-none transition focus:border-signal focus:bg-white focus:ring-2 focus:ring-signal-soft"
+                  type={showDeepseekKey ? 'text' : 'password'}
+                  value={deepseekApiKey}
+                  onChange={(event) => setDeepseekApiKey(event.target.value)}
+                  placeholder="sk-..."
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-line bg-white text-slate-600 transition hover:border-signal hover:text-signal"
+                  onClick={() => setShowDeepseekKey((current) => !current)}
+                  title={showDeepseekKey ? 'Hide API key' : 'Show API key'}
+                >
+                  {showDeepseekKey ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              <p className={`mt-2 text-xs ${needsDeepseekKey ? 'text-alert' : 'text-slate-500'}`}>
+                {needsDeepseekKey
+                  ? 'Enter a key to unlock DeepSeek diagnosis for this run.'
+                  : 'The key is sent with this request only and is not saved by NetSage AI.'}
+              </p>
+            </div>
+          )}
         </div>
 
         <dl className="mt-5 grid gap-4 md:grid-cols-3">
@@ -496,6 +574,7 @@ function DiagnosisDesk({
         <div className="mt-5 rounded-md border border-line bg-panel p-4">
           <div className="mb-2 text-sm font-semibold">Show Output Evidence</div>
           <pre className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{selectedCase.show_outputs}</pre>
+        </div>
         </div>
       </div>
 
@@ -512,7 +591,7 @@ function DiagnosisDesk({
         </div>
       ) : (
         <div className="rounded-md border border-line bg-white p-6 text-slate-600 shadow-soft">
-          Run diagnosis to see deterministic findings and the review form.
+          Run diagnosis to see findings and the review form.
         </div>
       )}
     </section>
@@ -529,7 +608,10 @@ function DiagnosisResult({ diagnosis }) {
         <StatusPill status={diagnosis.diagnosis_mode} />
       </div>
 
-      <h2 className="mt-4 text-xl font-semibold">{diagnosis.root_cause}</h2>
+      <h2 className="mt-4 flex items-start gap-2 text-xl font-semibold">
+        <Sparkles className="mt-1 shrink-0 text-signal" size={18} />
+        {diagnosis.root_cause}
+      </h2>
       <div className="mt-2 text-xs font-medium uppercase tracking-wide text-slate-500">
         Model: {diagnosis.model}
       </div>
@@ -541,10 +623,13 @@ function DiagnosisResult({ diagnosis }) {
       </div>
 
       <div className="mt-5">
-        <h3 className="text-base font-semibold">Deterministic Findings</h3>
+        <h3 className="flex items-center gap-2 text-base font-semibold">
+          <ShieldCheck size={18} className="text-signal" />
+          Deterministic Findings
+        </h3>
         <div className="mt-3 grid gap-3">
           {diagnosis.rule_findings.map((finding) => (
-            <div key={finding.check_id} className="rounded-md border border-line bg-panel p-4">
+            <div key={finding.check_id} className="rounded-md border border-line bg-panel p-4 transition hover:border-signal">
               <div className="flex items-center justify-between gap-3">
                 <div className="font-semibold">{finding.title}</div>
                 <span className="text-xs font-semibold uppercase text-slate-500">{finding.severity}</span>
@@ -578,7 +663,7 @@ function ReviewForm({ diagnosis, form, setForm, onSubmit, saving }) {
       </label>
       <input
         id="reviewer"
-        className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-signal"
+        className="mt-2 h-10 w-full rounded-md border border-line bg-panel px-3 text-sm outline-none transition focus:border-signal focus:bg-white focus:ring-2 focus:ring-signal-soft"
         value={form.reviewer}
         onChange={(event) => updateField('reviewer', event.target.value)}
       />
@@ -588,7 +673,7 @@ function ReviewForm({ diagnosis, form, setForm, onSubmit, saving }) {
       </label>
       <select
         id="status"
-        className="mt-2 h-10 w-full rounded-md border border-line px-3 text-sm outline-none focus:border-signal"
+        className="mt-2 h-10 w-full rounded-md border border-line bg-panel px-3 text-sm outline-none transition focus:border-signal focus:bg-white focus:ring-2 focus:ring-signal-soft"
         value={form.status}
         onChange={(event) => updateField('status', event.target.value)}
       >
@@ -602,7 +687,7 @@ function ReviewForm({ diagnosis, form, setForm, onSubmit, saving }) {
       </label>
       <textarea
         id="corrected_root_cause"
-        className="mt-2 min-h-24 w-full rounded-md border border-line p-3 text-sm outline-none focus:border-signal"
+        className="mt-2 min-h-24 w-full rounded-md border border-line bg-panel p-3 text-sm outline-none transition focus:border-signal focus:bg-white focus:ring-2 focus:ring-signal-soft"
         value={form.corrected_root_cause || diagnosis.root_cause}
         onChange={(event) => updateField('corrected_root_cause', event.target.value)}
       />
@@ -612,7 +697,7 @@ function ReviewForm({ diagnosis, form, setForm, onSubmit, saving }) {
       </label>
       <textarea
         id="review_notes"
-        className="mt-2 min-h-28 w-full rounded-md border border-line p-3 text-sm outline-none focus:border-signal"
+        className="mt-2 min-h-28 w-full rounded-md border border-line bg-panel p-3 text-sm outline-none transition focus:border-signal focus:bg-white focus:ring-2 focus:ring-signal-soft"
         value={form.review_notes}
         onChange={(event) => updateField('review_notes', event.target.value)}
         placeholder={needsNotes ? 'Explain what the AI missed or why it was corrected.' : 'Optional note.'}
@@ -620,7 +705,7 @@ function ReviewForm({ diagnosis, form, setForm, onSubmit, saving }) {
 
       <button
         type="submit"
-        className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
         disabled={saving}
       >
         <ClipboardCheck size={18} />
@@ -644,7 +729,7 @@ function FilterSelect({ label, value, options, onChange }) {
     <label className="block">
       <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</span>
       <select
-        className="h-10 w-full rounded-md border border-line bg-white px-3 text-sm outline-none focus:border-signal"
+        className="h-10 w-full rounded-md border border-line bg-panel px-3 text-sm outline-none transition focus:border-signal focus:bg-white focus:ring-2 focus:ring-signal-soft"
         value={value}
         onChange={(event) => onChange(event.target.value)}
       >

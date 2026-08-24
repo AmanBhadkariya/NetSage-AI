@@ -44,7 +44,7 @@ def test_rules_diagnosis_is_review_safe():
 
 
 def test_unknown_diagnosis_mode_is_rejected():
-    with pytest.raises(ValueError, match="mode must be rules or openai"):
+    with pytest.raises(ValueError, match="mode must be rules or deepseek"):
         diagnose_case("NS-001", mode="experimental")
 
 

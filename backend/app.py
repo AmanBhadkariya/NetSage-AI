@@ -27,6 +27,11 @@ class ReviewInput(BaseModel):
     review_notes: str = ""
 
 
+class DiagnosisInput(BaseModel):
+    mode: str = "rules"
+    deepseek_api_key: str = ""
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
@@ -54,6 +59,22 @@ def settings() -> dict:
 def diagnosis(case_id: str, mode: str = "rules") -> dict:
     try:
         return diagnose_case(case_id, mode=mode)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Case not found") from exc
+    except AIProviderError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/diagnose/{case_id}")
+def diagnosis_with_options(case_id: str, payload: DiagnosisInput) -> dict:
+    try:
+        return diagnose_case(
+            case_id,
+            mode=payload.mode,
+            deepseek_api_key=payload.deepseek_api_key,
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Case not found") from exc
     except AIProviderError as exc:

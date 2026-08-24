@@ -6,7 +6,7 @@ import urllib.error
 import urllib.request
 
 
-OPENAI_ENDPOINT = "https://api.openai.com/v1/responses"
+DEEPSEEK_ENDPOINT = "https://api.deepseek.com/chat/completions"
 
 
 class AIProviderError(RuntimeError):
@@ -22,57 +22,45 @@ def available_modes() -> list[dict]:
             "description": "Deterministic diagnosis using the local rule checker and known lab answer.",
         },
         {
-            "id": "openai",
-            "label": "OpenAI",
-            "available": bool(os.getenv("OPENAI_API_KEY")),
-            "description": "Prompt-based diagnosis using OpenAI Responses API when OPENAI_API_KEY is configured.",
+            "id": "deepseek",
+            "label": "DeepSeek",
+            "available": True,
+            "requires_key": True,
+            "configured": bool(os.getenv("DEEPSEEK_API_KEY")),
+            "description": "Prompt-based diagnosis using DeepSeek Chat Completions with a provided key or server environment key.",
         },
     ]
 
 
-def build_openai_diagnosis(case: dict, rule_findings: list[dict]) -> dict:
-    api_key = os.getenv("OPENAI_API_KEY")
+def build_deepseek_diagnosis(
+    case: dict,
+    rule_findings: list[dict],
+    api_key: str | None = None,
+) -> dict:
+    api_key = (api_key or os.getenv("DEEPSEEK_API_KEY") or "").strip()
     if not api_key:
-        raise AIProviderError("OPENAI_API_KEY is required for OpenAI diagnosis mode.")
+        raise AIProviderError("A DeepSeek API key is required for DeepSeek diagnosis mode.")
 
-    model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+    model = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
     prompt = _prompt_for(case, rule_findings)
     payload = {
         "model": model,
-        "input": prompt,
-        "text": {
-            "format": {
-                "type": "json_schema",
-                "name": "netsage_diagnosis",
-                "strict": True,
-                "schema": {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "required": [
-                        "root_cause",
-                        "osi_layer",
-                        "concept_tag",
-                        "confidence",
-                        "evidence",
-                        "next_command",
-                        "fix_steps",
-                    ],
-                    "properties": {
-                        "root_cause": {"type": "string"},
-                        "osi_layer": {"type": "string"},
-                        "concept_tag": {"type": "string"},
-                        "confidence": {"type": "string", "enum": ["Low", "Medium", "High"]},
-                        "evidence": {"type": "array", "items": {"type": "string"}},
-                        "next_command": {"type": "string"},
-                        "fix_steps": {"type": "array", "items": {"type": "string"}},
-                    },
-                },
-            }
-        },
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You are NetSage AI, a Cisco-style lab troubleshooting assistant. "
+                    "Return only valid JSON with the requested keys."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ],
+        "response_format": {"type": "json_object"},
+        "stream": False,
     }
 
     request = urllib.request.Request(
-        OPENAI_ENDPOINT,
+        DEEPSEEK_ENDPOINT,
         data=json.dumps(payload).encode("utf-8"),
         headers={
             "Authorization": f"Bearer {api_key}",
@@ -86,9 +74,9 @@ def build_openai_diagnosis(case: dict, rule_findings: list[dict]) -> dict:
             body = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
-        raise AIProviderError(f"OpenAI request failed: {detail}") from exc
+        raise AIProviderError(f"DeepSeek request failed: {detail}") from exc
     except urllib.error.URLError as exc:
-        raise AIProviderError(f"OpenAI request failed: {exc.reason}") from exc
+        raise AIProviderError(f"DeepSeek request failed: {exc.reason}") from exc
 
     parsed = _extract_response_json(body)
     return {
@@ -97,12 +85,12 @@ def build_openai_diagnosis(case: dict, rule_findings: list[dict]) -> dict:
         "osi_layer": parsed["osi_layer"],
         "concept_tag": parsed["concept_tag"],
         "confidence": parsed["confidence"],
-        "evidence": " ".join(parsed["evidence"]),
+        "evidence": _join_text(parsed["evidence"]),
         "next_command": parsed["next_command"],
-        "fix_steps": " ".join(parsed["fix_steps"]),
+        "fix_steps": _join_text(parsed["fix_steps"]),
         "rule_findings": rule_findings,
         "requires_human_review": True,
-        "diagnosis_mode": "openai",
+        "diagnosis_mode": "deepseek",
         "model": model,
     }
 
@@ -110,7 +98,10 @@ def build_openai_diagnosis(case: dict, rule_findings: list[dict]) -> dict:
 def _prompt_for(case: dict, rule_findings: list[dict]) -> str:
     return f"""
 You are NetSage AI, a Cisco-style lab troubleshooting assistant. Diagnose only from supplied evidence.
-Return only JSON matching the requested schema. A human reviewer must approve or correct the diagnosis.
+Return only valid JSON with these keys:
+root_cause string, osi_layer string, concept_tag string, confidence Low|Medium|High,
+evidence array of strings, next_command string, fix_steps array of strings.
+A human reviewer must approve or correct the diagnosis.
 
 Case ID: {case["case_id"]}
 Symptom: {case["symptom"]}
@@ -121,12 +112,16 @@ Deterministic rule findings: {json.dumps(rule_findings)}
 
 
 def _extract_response_json(body: dict) -> dict:
-    if "output_text" in body:
-        return json.loads(body["output_text"])
+    choices = body.get("choices") or []
+    if choices:
+        content = choices[0].get("message", {}).get("content", "")
+        if content:
+            return json.loads(content)
 
-    for item in body.get("output", []):
-        for content in item.get("content", []):
-            if content.get("type") == "output_text":
-                return json.loads(content.get("text", "{}"))
+    raise AIProviderError("DeepSeek response did not contain JSON message content.")
 
-    raise AIProviderError("OpenAI response did not contain JSON output text.")
+
+def _join_text(value: str | list[str]) -> str:
+    if isinstance(value, list):
+        return " ".join(str(item) for item in value)
+    return str(value)

@@ -4,7 +4,7 @@ import csv
 from collections import Counter
 from pathlib import Path
 
-from ai_provider import AIProviderError, build_openai_diagnosis
+from ai_provider import AIProviderError, build_deepseek_diagnosis
 from rule_checker import build_diagnosis, run_rule_checks
 
 
@@ -34,13 +34,13 @@ def get_case(case_id: str) -> dict:
     raise KeyError(case_id)
 
 
-def diagnose_case(case_id: str, mode: str = "rules") -> dict:
+def diagnose_case(case_id: str, mode: str = "rules", deepseek_api_key: str | None = None) -> dict:
     case = get_case(case_id)
     findings = run_rule_checks(case)
-    if mode == "openai":
-        return build_openai_diagnosis(case, findings)
+    if mode == "deepseek":
+        return build_deepseek_diagnosis(case, findings, api_key=deepseek_api_key)
     if mode != "rules":
-        raise ValueError("mode must be rules or openai")
+        raise ValueError("mode must be rules or deepseek")
     return build_diagnosis(case, findings)
 
 

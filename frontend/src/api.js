@@ -35,8 +35,14 @@ export function getSettings() {
   return request('/settings');
 }
 
-export function diagnoseCase(caseId, mode = 'rules') {
-  return request(`/diagnose/${caseId}?mode=${encodeURIComponent(mode)}`);
+export function diagnoseCase(caseId, mode = 'rules', deepseekApiKey = '') {
+  return request(`/diagnose/${caseId}`, {
+    method: 'POST',
+    body: JSON.stringify({
+      mode,
+      deepseek_api_key: deepseekApiKey,
+    }),
+  });
 }
 
 export function getReviews() {

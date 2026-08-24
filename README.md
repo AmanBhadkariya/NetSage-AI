@@ -64,7 +64,11 @@ pnpm dev
 
 - Browse 30 lab troubleshooting cases across VLAN, DHCP, DNS, routing, ACL, NAT, wireless, interface, gateway, mask, and trunking issues.
 - Run deterministic checks for common configuration mistakes.
-- View an evidence-backed diagnosis draft.
+- View an evidence-backed diagnosis draft from local rules or DeepSeek API mode.
 - Require human review before a diagnosis is counted as final.
 - Track accepted, edited, and rejected AI outputs.
 - Dashboard charts summarize issue type, severity, OSI layer, and review agreement.
+
+## DeepSeek Diagnosis Mode
+
+Select DeepSeek in the diagnosis console and enter a DeepSeek API key for that run. The key is sent with the request and is not saved by NetSage AI. You can also set `DEEPSEEK_API_KEY` on the backend, and optionally `DEEPSEEK_MODEL` such as `deepseek-v4-flash`.

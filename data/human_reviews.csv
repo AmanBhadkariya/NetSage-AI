@@ -6,3 +6,4 @@ NS-010,Accepted,Rohan Mehta,ACL denies traffic from the local subnet before the 
 NS-013,Edited,Asha Patel,Printer subnet mask is incorrect.,AI suggested duplicate IP first but evidence points to a mask mismatch.
 NS-017,Rejected,Rohan Mehta,NAT ACL matches the wrong inside subnet.,AI suggested missing outside interface but the NAT role existed in the full lab config.
 NS-021,Edited,Asha Patel,Guest SSID is mapped to the corporate VLAN.,AI found a wireless issue but missed the exact SSID-to-VLAN mapping fault.
+NS-002,Rejected,Aman,VLAN 30 is not allowed on the trunk toward the router.,Not good
