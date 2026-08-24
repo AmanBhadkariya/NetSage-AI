@@ -1,0 +1,8 @@
+case_id,status,reviewer,corrected_root_cause,review_notes
+NS-001,Accepted,Asha Patel,SVI VLAN 10 is administratively shut down.,Evidence directly shows Vlan10 administratively down.
+NS-004,Edited,Rohan Mehta,Client DNS server address is wrong; routing is not the cause.,AI initially over-weighted browsing failure as routing even though IP ping worked.
+NS-008,Rejected,Asha Patel,Guest wireless ACL missing isolation from payroll server.,AI called this general VLAN leakage but the decisive evidence was the missing ACL deny.
+NS-010,Accepted,Rohan Mehta,ACL denies traffic from the local subnet before the permit statement.,ACL hit count supports the diagnosis.
+NS-013,Edited,Asha Patel,Printer subnet mask is incorrect.,AI suggested duplicate IP first but evidence points to a mask mismatch.
+NS-017,Rejected,Rohan Mehta,NAT ACL matches the wrong inside subnet.,AI suggested missing outside interface but the NAT role existed in the full lab config.
+NS-021,Edited,Asha Patel,Guest SSID is mapped to the corporate VLAN.,AI found a wireless issue but missed the exact SSID-to-VLAN mapping fault.
